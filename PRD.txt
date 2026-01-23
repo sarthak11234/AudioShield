@@ -1,0 +1,117 @@
+# Product Requirements Document (PRD): AudioShield
+
+**Version:** 1.0
+
+**Status:** Draft
+
+**Owner:** Sarthak (Engineering Student & Artist)
+
+**Date:** January 23, 2026
+
+---
+
+### **1. Executive Summary**
+
+AudioShield is a SaaS platform designed to protect independent musical artists from Generative AI voice cloning and unauthorized model training. By applying imperceptible "adversarial noise" to audio files, AudioShield disrupts the ability of AI models (like RVC, So-VITS) to clone an artist's voice while maintaining audio quality for human listeners.
+
+The product targets the "Creator Economy" gap where independent artists lack the technical resources to protect their intellectual property against emerging AI threats.
+
+---
+
+### **2. Problem Statement**
+
+* **The Threat:** Generative AI tools can now clone an artist's voice from as little as 3-10 seconds of audio. This allows bad actors to create "deepfake" songs that dilute the artist's brand, steal streams, or ruin their reputation.
+* **The Gap:** Current protection methods (watermarking) often degrade audio quality or require enterprise-level computing power that independent artists cannot afford.
+* **The User:** Independent artists (like the founder) who upload music to Spotify/SoundCloud but have no legal or technical shield against AI scrapping.
+
+---
+
+### **3. Goals & Success Metrics**
+
+#### **3.1 Primary Goals**
+
+1. **Protection:** Successfully disrupt AI voice cloning attempts (specifically RVC/HuBERT models) for >80% of processed tracks.
+2. **Quality:** Ensure the "poisoned" audio remains indistinguishable from the original to the human ear (MOS > 4.0).
+3. **Accessibility:** Provide a simple "Drag & Drop" interface requiring no coding knowledge for the artist.
+
+#### **3.2 Success Metrics (KPIs)**
+
+* **Processing Success Rate:** % of uploads successfully processed without server/worker crash.
+* **Inference Time:** Average time to protect a 3-minute song (Target: < 2 minutes).
+* **User Retention:** % of users who return to protect a second track.
+
+---
+
+### **4. User Personas**
+
+**Persona A: "The Bedroom Producer" (Primary)**
+
+* **Profile:** 20-25 years old, independent artist, tech-literate but not a coder.
+* **Pain Point:** terrified of AI stealing their "flow" but can't afford expensive legal counsel.
+* **Needs:** A cheap, fast, and effective way to "lock" their wav files before distribution.
+
+**Persona B: "The Label Intern" (Secondary)**
+
+* **Profile:** Works at a small indie label managing 10-20 artists.
+* **Needs:** Batch processing capability to protect an entire album at once.
+
+---
+
+### **5. Functional Requirements**
+
+#### **5.1 The "Storefront" (Web Interface)**
+
+* **FR-01:** User must be able to upload audio files in `.wav` and `.mp3` formats (Max size: 50MB).
+* **FR-02:** User must receive a unique "Task ID" immediately upon upload.
+* **FR-03:** User must see a real-time status bar (Queued -> Processing -> Completed).
+* **FR-04:** User must be able to download the protected file (`_protected.wav`) once processing is complete.
+
+#### **5.2 The "Brain" (Backend Processing)**
+
+* **FR-05:** System must queue incoming requests to prevent GPU overload (limit: 1 active job per GPU).
+* **FR-06:** System must slice audio into <15s chunks to respect VRAM constraints (6GB limit).
+* **FR-07:** System must apply Projected Gradient Descent (PGD) attack against the HuBERT feature extractor.
+* **FR-08:** System must stitch chunks back together with zero-crossing alignment to prevent "clicks" or audio artifacts.
+
+#### **5.3 Security & Data**
+
+* **FR-09:** Uploaded files must be automatically deleted from the server 1 hour after processing to ensure artist privacy.
+* **FR-10:** No user audio data shall be used to train the system's own models.
+
+---
+
+### **6. Technical Architecture**
+
+* **Frontend:** HTML/JS (MVP) -> React.js (V2)
+* **API Layer:** FastAPI (Python 3.10+)
+* **Queue System:** Redis (Dockerized)
+* **Compute Worker:** Celery with `pool=solo` (Optimized for single NVIDIA GPU)
+* **ML Framework:** PyTorch + Torchaudio
+* **Hardware Constraint:** Designed for NVIDIA RTX 3060 / 4050 (6GB VRAM).
+
+---
+
+### **7. Roadmap & Phases**
+
+| Phase | Milestone | Key Features | Timeline |
+| --- | --- | --- | --- |
+| **Phase 1 (MVP)** | **Local Prototype** | CLI tool, Basic PGD attack, Works on 10s clips. | *This Weekend* |
+| **Phase 2 (Beta)** | **The Web Service** | FastAPI + Redis + Celery Integration. Full song support via chunking. | *Week 2* |
+| **Phase 3 (V1.0)** | **Public Launch** | Psychoacoustic masking (better audio quality), Batch uploads. | *Month 2* |
+
+---
+
+### **8. Risks & Mitigation**
+
+| Risk | Impact | Mitigation Strategy |
+| --- | --- | --- |
+| **VRAM OOM (Out of Memory)** | High (Crash) | Strict audio chunking (<10s) and `pool=solo` for workers. |
+| **Audio Artifacts** | Medium (Quality) | Implement "Perceptual Loss" in the PGD loop (mask noise under loud frequencies). |
+| **Long Wait Times** | Medium (UX) | Add a simple "Email me when done" notification for the user. |
+
+---
+
+### **9. Open Questions**
+
+* *Optimization:* Can we switch from PGD (slow) to a Fast Gradient Sign Method (FGSM) to speed up processing by 10x without losing protection quality? (To be tested in Phase 2).
+* *Legal:* Do we need a disclaimer stating "Protection is not 100% guaranteed"? (Yes, for V1).

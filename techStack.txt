@@ -1,0 +1,53 @@
+
+
+### 1. The "Storefront" (Frontend)
+
+**Goal:** Build the "Glassmorphism" UI with high-end animations and real-time status updates.
+
+| Component | Choice | Why for You? |
+| --- | --- | --- |
+| **Framework** | **Next.js (React)** | The industry standard. It handles routing and "Server Side Rendering" (SEO) out of the box. |
+| **Language** | **TypeScript** | Mandatory for a complex app. It catches bugs *before* you run the code (e.g., passing a "string" instead of a "file"). |
+| **Styling** | **Tailwind CSS** | The fastest way to build the "Dark Mode" and "Glassmorphism" look (`backdrop-blur-md`, `bg-opacity-10`). |
+| **Animations** | **Framer Motion** | Essential for the "Biometric Scan" and "Data Stream" animations defined in the Design Doc. |
+| **Charts** | **Recharts** | Lightweight library to build the "Donut Chart" and "Line Graph" for the dashboard. |
+| **Icons** | **Lucide React** | Clean, crisp SVG icons that match the "FinTech" aesthetic perfectly. |
+
+---
+
+### 2. The "Manager" (Backend API)
+
+**Goal:** Handle user uploads and manage the "Waiting Room" (Queue) without blocking.
+
+| Component | Choice | Why for You? |
+| --- | --- | --- |
+| **Framework** | **FastAPI** (Python) | High-performance, native async support. It auto-generates API documentation (Swagger UI), which saves huge time. |
+| **Database** | **PostgreSQL** | More robust than SQLite. Good for handling user accounts and file metadata. (Run via Docker). |
+| **ORM** | **SQLAlchemy** | The bridge between your Python code and the Database. |
+| **Validation** | **Pydantic** | Ensures data integrity (e.g., checking if the uploaded file is actually `.wav` and not `.exe`). |
+
+---
+
+### 3. The "Factory" (AI Worker)
+
+**Goal:** Process audio on your GPU without crashing the web server.
+
+| Component | Choice | Why for You? |
+| --- | --- | --- |
+| **Task Queue** | **Celery** | The industry standard for background jobs. It manages the workers. |
+| **Broker** | **Redis** | The "Message Board" where FastAPI posts jobs and Celery picks them up. (Run via Docker). |
+| **ML Framework** | **PyTorch** | Best for research and audio. You need this for the gradient attacks (PGD). |
+| **Audio I/O** | **Torchaudio** | Loads audio directly into GPU tensors (faster than Librosa). |
+| **Target Model** | **Transformers** | Use the `Hugging Face` library to load the "HuBERT" model you are attacking. |
+
+---
+
+### 4. The DevOps (Infrastructure)
+
+**Goal:** Run all of this on your laptop neatly.
+
+* **Docker & Docker Compose:**
+* You don't want to install Redis and Postgres directly on Windows.
+* **Solution:** A single `docker-compose.yml` file that spins up the Database and Redis with one command.
+* *Note:* Keep the Python Worker running **outside** Docker (natively) to ensure it has full, easy access to your NVIDIA GPU drivers.
+
