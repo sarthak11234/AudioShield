@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api import upload_router, status_router, download_router
 
 app = FastAPI(
     title="AudioShield API",
@@ -14,6 +15,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(upload_router)
+app.include_router(status_router)
+app.include_router(download_router)
 
 @app.get("/health")
 async def health_check():
