@@ -2,61 +2,88 @@
 
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Shield, FileAudio, Check, Download } from 'lucide-react';
+import { Shield, FileAudio, Check, Download } from 'lucide-react';
 import { GlassPanel, Button } from '@/components/ui';
+import { api, Task } from '@/lib/api';
 
 type Status = 'idle' | 'uploading' | 'processing' | 'completed' | 'error';
-
-const statusMessages = [
-    'Analyzing Frequency...',
-    'Generating Noise Mask...',
-    'Injecting Protection...',
-    'Finalizing...'
-];
 
 export default function ProtectPage() {
     const [status, setStatus] = useState<Status>('idle');
     const [file, setFile] = useState<File | null>(null);
     const [progress, setProgress] = useState(0);
     const [statusMessage, setStatusMessage] = useState('');
+    const [task, setTask] = useState<Task | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const processFile = async (selectedFile: File) => {
+        setFile(selectedFile);
+        setStatus('uploading');
+        setProgress(0);
+        setError(null);
+
+        try {
+            // Upload file
+            const uploadedTask = await api.uploadFile(selectedFile, (p) => {
+                setProgress(Math.min(p, 30));
+            });
+
+            setTask(uploadedTask);
+            setStatus('processing');
+            setStatusMessage('Queued for processing...');
+            setProgress(30);
+
+            // Poll for status
+            await api.pollTaskStatus(
+                uploadedTask.id,
+                (taskStatus) => {
+                    const progressMap: Record<string, number> = {
+                        'queued': 35,
+                        'processing': 50,
+                    };
+                    setProgress(progressMap[taskStatus.status] || 50);
+
+                    if (taskStatus.progress) {
+                        setStatusMessage(taskStatus.progress);
+                        if (taskStatus.progress.includes('chunk')) {
+                            setProgress(60 + Math.random() * 30);
+                        }
+                    } else {
+                        setStatusMessage(taskStatus.status === 'processing' ? 'Applying protection...' : 'Queued...');
+                    }
+                },
+                2000
+            );
+
+            setStatus('completed');
+            setProgress(100);
+            setStatusMessage('Protection complete!');
+
+        } catch (err) {
+            setStatus('error');
+            setError(err instanceof Error ? err.message : 'An error occurred');
+        }
+    };
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         const droppedFile = e.dataTransfer.files[0];
-        if (droppedFile && (droppedFile.name.endsWith('.wav') || droppedFile.name.endsWith('.flac') || droppedFile.name.endsWith('.mp3'))) {
-            setFile(droppedFile);
-            simulateProcessing();
+        if (droppedFile && /\.(wav|flac|mp3)$/i.test(droppedFile.name)) {
+            processFile(droppedFile);
         }
     }, []);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
-            setFile(selectedFile);
-            simulateProcessing();
+            processFile(selectedFile);
         }
     };
 
-    const simulateProcessing = () => {
-        setStatus('uploading');
-        setProgress(0);
-
-        // Simulate upload
-        setTimeout(() => {
-            setStatus('processing');
-            let step = 0;
-            const interval = setInterval(() => {
-                if (step < statusMessages.length) {
-                    setStatusMessage(statusMessages[step]);
-                    setProgress((step + 1) * 25);
-                    step++;
-                } else {
-                    clearInterval(interval);
-                    setStatus('completed');
-                    setProgress(100);
-                }
-            }, 1500);
-        }, 1000);
+    const handleDownload = () => {
+        if (task) {
+            window.open(api.getDownloadUrl(task.id), '_blank');
+        }
     };
 
     const reset = () => {
@@ -64,6 +91,8 @@ export default function ProtectPage() {
         setFile(null);
         setProgress(0);
         setStatusMessage('');
+        setTask(null);
+        setError(null);
     };
 
     return (
@@ -122,9 +151,8 @@ export default function ProtectPage() {
                                 />
                             </div>
                             <h2 className="text-xl font-semibold mb-2">{file?.name}</h2>
-                            <p className="text-[#00CEC9] font-medium mb-6">{statusMessage || 'Uploading...'}</p>
+                            <p className="text-[#00CEC9] font-medium mb-6">{statusMessage}</p>
 
-                            {/* Progress bar */}
                             <div className="max-w-md mx-auto">
                                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                                     <motion.div
@@ -134,13 +162,13 @@ export default function ProtectPage() {
                                         transition={{ duration: 0.5 }}
                                     />
                                 </div>
-                                <p className="text-sm text-white/40 mt-2">{progress}%</p>
+                                <p className="text-sm text-white/40 mt-2">{Math.round(progress)}%</p>
                             </div>
                         </GlassPanel>
                     </motion.div>
                 )}
 
-                {status === 'completed' && (
+                {status === 'completed' && task && (
                     <motion.div
                         key="completed"
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -152,7 +180,7 @@ export default function ProtectPage() {
                                 <Check className="w-10 h-10" />
                             </div>
                             <h2 className="text-2xl font-bold mb-2">Protection Complete!</h2>
-                            <p className="text-white/60 mb-8">{file?.name?.replace(/\.\w+$/, '_protected.wav')}</p>
+                            <p className="text-white/60 mb-8">{task.original_name.replace(/\.\w+$/, '_protected.wav')}</p>
 
                             <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-8 text-sm">
                                 <div className="bg-white/5 rounded-xl p-4">
@@ -170,7 +198,7 @@ export default function ProtectPage() {
                             </div>
 
                             <div className="flex gap-4 justify-center">
-                                <Button>
+                                <Button onClick={handleDownload}>
                                     <Download className="w-4 h-4 mr-2 inline" />
                                     Download Protected
                                 </Button>
@@ -178,6 +206,23 @@ export default function ProtectPage() {
                                     Protect Another
                                 </Button>
                             </div>
+                        </GlassPanel>
+                    </motion.div>
+                )}
+
+                {status === 'error' && (
+                    <motion.div
+                        key="error"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                    >
+                        <GlassPanel className="text-center py-12">
+                            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#FF7675] flex items-center justify-center">
+                                <span className="text-3xl">!</span>
+                            </div>
+                            <h2 className="text-2xl font-bold mb-2">Processing Failed</h2>
+                            <p className="text-white/60 mb-8">{error}</p>
+                            <Button onClick={reset}>Try Again</Button>
                         </GlassPanel>
                     </motion.div>
                 )}

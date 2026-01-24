@@ -82,17 +82,17 @@
 - [ ] Create album art/waveform placeholder
 
 ### 10. Real-time Status Updates
-- [ ] Implement WebSocket connection for live status
-- [ ] Create status state machine (Queued → Processing → Completed)
-- [ ] Build real-time progress bar updates
-- [ ] Add task polling fallback mechanism
+- [x] Implement WebSocket connection for live status
+- [x] Create status state machine (Queued → Processing → Completed)
+- [x] Build real-time progress bar updates
+- [x] Add task polling fallback mechanism
 
 ### 11. API Integration (Frontend ↔ Backend)
-- [ ] Create API client service layer
-- [ ] Implement file upload with progress tracking
-- [ ] Build task status polling/WebSocket integration
-- [ ] Handle download of protected files
-- [ ] Add error handling and retry logic
+- [x] Create API client service layer
+- [x] Implement file upload with progress tracking
+- [x] Build task status polling/WebSocket integration
+- [x] Handle download of protected files
+- [x] Add error handling and retry logic
 
 ---
 
