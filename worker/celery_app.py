@@ -7,7 +7,6 @@ app = Celery(
     "audioshield",
     broker=redis_url,
     backend=redis_url,
-    include=["tasks.protect"]
 )
 
 app.conf.update(
@@ -16,7 +15,10 @@ app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    worker_pool="solo",  # Single GPU job at a time
+    worker_pool="solo",
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 )
+
+# Import tasks to register them
+import tasks.protect  # noqa: F401, E402

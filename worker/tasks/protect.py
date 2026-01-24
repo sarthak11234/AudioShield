@@ -1,9 +1,29 @@
 import os
 import torch
 import torchaudio
+import numpy as np
+from scipy.io import wavfile
 from celery_app import app
 from tasks.chunker import chunk_audio, stitch_audio
 from tasks.pgd_attack import pgd_attack
+
+def load_audio(path):
+    """Load audio using scipy for WAV files (most reliable)."""
+    sample_rate, data = wavfile.read(path)
+    # Convert to float32 and normalize
+    if data.dtype == np.int16:
+        data = data.astype(np.float32) / 32768.0
+    elif data.dtype == np.int32:
+        data = data.astype(np.float32) / 2147483648.0
+    elif data.dtype == np.uint8:
+        data = (data.astype(np.float32) - 128) / 128.0
+    # Convert to tensor (channels, samples)
+    waveform = torch.from_numpy(data)
+    if waveform.dim() == 1:
+        waveform = waveform.unsqueeze(0)
+    else:
+        waveform = waveform.T  # scipy returns (samples, channels)
+    return waveform, sample_rate
 
 @app.task(bind=True, name="protect_audio")
 def protect_audio(self, task_id: str, input_path: str, output_path: str):
@@ -11,11 +31,13 @@ def protect_audio(self, task_id: str, input_path: str, output_path: str):
     Main protection task - applies PGD adversarial attack to audio.
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[AudioShield] Starting protection on {device}")
     
     try:
-        # Step 1: Load audio
+        # Step 1: Load audio using soundfile backend
         self.update_state(state="PROCESSING", meta={"step": "loading"})
-        waveform, sample_rate = torchaudio.load(input_path)
+        print(f"[AudioShield] Loading audio: {input_path}")
+        waveform, sample_rate = load_audio(input_path)
         
         # Resample to 16kHz for HuBERT
         if sample_rate != 16000:

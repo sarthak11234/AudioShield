@@ -11,14 +11,12 @@ def load_hubert(device: str = "cuda"):
     global _hubert_model, _feature_extractor
     
     if _hubert_model is None:
+        print("[AudioShield] Loading HuBERT model...")
         _feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained("facebook/hubert-base-ls960")
         _hubert_model = HubertModel.from_pretrained("facebook/hubert-base-ls960")
         _hubert_model = _hubert_model.to(device)
         _hubert_model.eval()
-        
-        # Freeze model parameters
-        for param in _hubert_model.parameters():
-            param.requires_grad = False
+        print("[AudioShield] HuBERT model loaded!")
     
     return _hubert_model, _feature_extractor
 
@@ -33,17 +31,6 @@ def pgd_attack(
 ) -> torch.Tensor:
     """
     Projected Gradient Descent attack against HuBERT.
-    
-    Args:
-        waveform: Audio tensor of shape (samples,) or (1, samples)
-        sample_rate: Audio sample rate (HuBERT expects 16kHz)
-        epsilon: Maximum perturbation magnitude
-        alpha: Step size per iteration
-        num_steps: Number of PGD iterations
-        device: cuda or cpu
-    
-    Returns:
-        Adversarially perturbed audio tensor
     """
     model, extractor = load_hubert(device)
     
@@ -51,51 +38,81 @@ def pgd_attack(
     if waveform.dim() == 2:
         waveform = waveform.squeeze(0)
     
-    waveform = waveform.to(device)
+    waveform = waveform.to(device).float()
     original_waveform = waveform.clone()
     
-    # Initialize perturbation
-    delta = torch.zeros_like(waveform, requires_grad=True)
+    # Get normalization params from extractor
+    mean = extractor.mean if hasattr(extractor, 'mean') else 0.0
+    std = extractor.std if hasattr(extractor, 'std') else 1.0
     
-    # Get original features
+    # Initialize perturbation
+    delta = torch.zeros_like(waveform, device=device)
+    
+    # Get original features (no grad needed)
     with torch.no_grad():
         inputs = extractor(
             original_waveform.cpu().numpy(),
             sampling_rate=sample_rate,
-            return_tensors="pt"
+            return_tensors="pt",
+            padding=True
         )
         original_features = model(inputs.input_values.to(device)).last_hidden_state
     
-    # PGD loop
+    print(f"[AudioShield] Running PGD attack ({num_steps} steps)...")
+    
+    # PGD loop - use finite differences for gradient estimation
     for step in range(num_steps):
-        delta.requires_grad_(True)
-        
         perturbed = original_waveform + delta
         
         # Get perturbed features
-        inputs = extractor(
-            perturbed.detach().cpu().numpy(),
-            sampling_rate=sample_rate,
-            return_tensors="pt"
-        )
-        perturbed_features = model(inputs.input_values.to(device)).last_hidden_state
-        
-        # Loss: maximize feature distance (untargeted attack)
-        loss = -F.mse_loss(perturbed_features, original_features)
-        loss.backward()
-        
-        # Update perturbation
         with torch.no_grad():
-            delta = delta + alpha * delta.grad.sign()
-            delta = torch.clamp(delta, -epsilon, epsilon)
-            delta = delta.detach()
+            inputs = extractor(
+                perturbed.cpu().numpy(),
+                sampling_rate=sample_rate,
+                return_tensors="pt",
+                padding=True
+            )
+            perturbed_features = model(inputs.input_values.to(device)).last_hidden_state
         
-        # Clear GPU memory periodically
+        # Compute loss (maximize distance = minimize negative distance)
+        loss = F.mse_loss(perturbed_features, original_features)
+        
+        # Estimate gradient using finite differences (SPSA-style)
+        grad = torch.zeros_like(delta)
+        h = 0.001  # Small step for gradient estimation
+        
+        for _ in range(2):  # Average over a few random directions
+            direction = torch.sign(torch.randn_like(delta))
+            
+            # Forward difference
+            delta_plus = delta + h * direction
+            perturbed_plus = original_waveform + delta_plus
+            with torch.no_grad():
+                inputs_plus = extractor(
+                    perturbed_plus.cpu().numpy(),
+                    sampling_rate=sample_rate,
+                    return_tensors="pt",
+                    padding=True
+                )
+                features_plus = model(inputs_plus.input_values.to(device)).last_hidden_state
+                loss_plus = F.mse_loss(features_plus, original_features)
+            
+            grad += (loss_plus - loss) / h * direction
+        
+        grad = grad / 2  # Average
+        
+        # Update perturbation (maximize loss = add positive gradient)
+        delta = delta + alpha * torch.sign(grad)
+        delta = torch.clamp(delta, -epsilon, epsilon)
+        
         if step % 10 == 0:
+            print(f"[AudioShield] Step {step + 1}/{num_steps}, loss: {loss.item():.6f}")
             torch.cuda.empty_cache()
     
     # Apply final perturbation
     protected_audio = original_waveform + delta
     protected_audio = torch.clamp(protected_audio, -1.0, 1.0)
     
+    print("[AudioShield] PGD attack complete!")
     return protected_audio.cpu()
+
