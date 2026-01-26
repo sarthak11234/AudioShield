@@ -61,8 +61,8 @@ def protect_audio(self, task_id: str, input_path: str, output_path: str):
                 chunk.squeeze(0) if chunk.dim() > 1 else chunk,
                 sample_rate=sample_rate,
                 epsilon=0.02,
-                alpha=0.001,
-                num_steps=50,
+                alpha=0.002,  # Slightly larger step size for fewer steps
+                num_steps=15,  # Reduced from 50 for faster processing
                 device=device
             )
             protected_chunks.append((protected.unsqueeze(0), start, end))
@@ -75,12 +75,18 @@ def protect_audio(self, task_id: str, input_path: str, output_path: str):
         total_samples = waveform.shape[-1]
         protected_audio = stitch_audio(protected_chunks, total_samples, channels=1)
         
-        # Step 5: Save output
+        # Step 5: Save output using scipy (more reliable)
         self.update_state(state="PROCESSING", meta={"step": "saving"})
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        torchaudio.save(output_path, protected_audio, sample_rate)
         
+        # Convert to int16 for WAV file
+        audio_np = protected_audio.squeeze(0).numpy()
+        audio_int16 = (audio_np * 32767).astype(np.int16)
+        wavfile.write(output_path, sample_rate, audio_int16)
+        
+        print(f"[AudioShield] Protection complete! Saved to {output_path}")
         return {"status": "completed", "output_path": output_path}
         
     except Exception as e:
+        print(f"[AudioShield] Error: {str(e)}")
         return {"status": "failed", "error": str(e)}
