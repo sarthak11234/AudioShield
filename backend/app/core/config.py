@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     max_file_size_mb: int = 50
     file_ttl_hours: int = 1
+    secret_key: str = "audioshield-dev-secret-key-change-in-production"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440  # 24 hours
 
     class Config:
         env_file = ".env"
