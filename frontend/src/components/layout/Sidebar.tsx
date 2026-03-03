@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, Upload, Archive, Settings, Shield } from 'lucide-react';
+import { LayoutDashboard, Upload, Archive, Settings, Shield, LogOut } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
 const navItems = [
     { href: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -14,6 +15,7 @@ const navItems = [
 
 export function Sidebar() {
     const pathname = usePathname();
+    const { user, logout } = useAuth();
 
     return (
         <aside className="glass-sidebar h-screen w-64 fixed left-0 top-0 flex flex-col py-6 px-4">
@@ -35,8 +37,8 @@ export function Sidebar() {
                         <Link key={item.href} href={item.href}>
                             <motion.div
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive
-                                        ? 'bg-white/10 text-white'
-                                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                                    ? 'bg-white/10 text-white'
+                                    : 'text-white/60 hover:text-white hover:bg-white/5'
                                     }`}
                                 whileHover={{ x: 4 }}
                                 whileTap={{ scale: 0.98 }}
@@ -55,10 +57,29 @@ export function Sidebar() {
                 })}
             </nav>
 
-            {/* Footer */}
-            <div className="text-xs text-white/40 px-4">
-                © 2026 AudioShield
-            </div>
+            {/* User Info & Logout */}
+            {user && (
+                <div className="border-t border-white/10 pt-4 space-y-3">
+                    <div className="px-2">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-sm font-bold">
+                                {user.username.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{user.username}</p>
+                                <p className="text-xs text-white/40 truncate">{user.email}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={logout}
+                        className="flex items-center gap-3 px-4 py-2 rounded-xl text-white/40 hover:text-[#FF7675] hover:bg-white/5 transition-colors w-full"
+                    >
+                        <LogOut className="w-4 h-4" />
+                        <span className="text-sm">Sign out</span>
+                    </button>
+                </div>
+            )}
         </aside>
     );
 }
