@@ -15,18 +15,81 @@ export interface TaskStatus {
     progress?: string;
 }
 
+export interface UserData {
+    id: string;
+    email: string;
+    username: string;
+    created_at: string;
+}
+
+export interface TokenResponse {
+    access_token: string;
+    token_type: string;
+    user: UserData;
+}
+
 class ApiClient {
     private baseUrl: string;
+    private token: string | null = null;
 
     constructor(baseUrl: string = API_BASE) {
         this.baseUrl = baseUrl;
     }
+
+    setToken(token: string | null) {
+        this.token = token;
+    }
+
+    private authHeaders(): Record<string, string> {
+        if (!this.token) return {};
+        return { Authorization: `Bearer ${this.token}` };
+    }
+
+    // ─── Auth ────────────────────────────────────────
+
+    async signup(username: string, email: string, password: string): Promise<TokenResponse> {
+        const res = await fetch(`${this.baseUrl}/api/auth/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Signup failed');
+        }
+        return res.json();
+    }
+
+    async login(email: string, password: string): Promise<TokenResponse> {
+        const res = await fetch(`${this.baseUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Invalid credentials');
+        }
+        return res.json();
+    }
+
+    async getMe(): Promise<UserData> {
+        const res = await fetch(`${this.baseUrl}/api/auth/me`, {
+            headers: this.authHeaders(),
+        });
+        if (!res.ok) throw new Error('Not authenticated');
+        return res.json();
+    }
+
+    // ─── Health ──────────────────────────────────────
 
     async health(): Promise<{ status: string; service: string }> {
         const res = await fetch(`${this.baseUrl}/health`);
         if (!res.ok) throw new Error('API not available');
         return res.json();
     }
+
+    // ─── Files ───────────────────────────────────────
 
     async uploadFile(
         file: File,
@@ -35,7 +98,6 @@ class ApiClient {
         const formData = new FormData();
         formData.append('file', file);
 
-        // Use XMLHttpRequest for progress tracking
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
 
@@ -56,18 +118,25 @@ class ApiClient {
             xhr.addEventListener('error', () => reject(new Error('Network error')));
 
             xhr.open('POST', `${this.baseUrl}/api/upload`);
+            if (this.token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
+            }
             xhr.send(formData);
         });
     }
 
     async getTaskStatus(taskId: string): Promise<TaskStatus> {
-        const res = await fetch(`${this.baseUrl}/api/status/${taskId}`);
+        const res = await fetch(`${this.baseUrl}/api/status/${taskId}`, {
+            headers: this.authHeaders(),
+        });
         if (!res.ok) throw new Error('Failed to get task status');
         return res.json();
     }
 
     async getTask(taskId: string): Promise<Task> {
-        const res = await fetch(`${this.baseUrl}/api/task/${taskId}`);
+        const res = await fetch(`${this.baseUrl}/api/task/${taskId}`, {
+            headers: this.authHeaders(),
+        });
         if (!res.ok) throw new Error('Task not found');
         return res.json();
     }
@@ -76,7 +145,8 @@ class ApiClient {
         return `${this.baseUrl}/api/download/${taskId}`;
     }
 
-    // Poll for task completion
+    // ─── Polling ─────────────────────────────────────
+
     async pollTaskStatus(
         taskId: string,
         onUpdate: (status: TaskStatus) => void,
