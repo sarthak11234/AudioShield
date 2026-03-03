@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.core.celery import queue_protect_task
+from app.core.auth import get_current_user
 from app.models.task import Task
+from app.models.user import User
 from app.schemas.task import TaskResponse
 
 router = APIRouter(prefix="/api", tags=["upload"])
@@ -18,7 +20,8 @@ MAX_SIZE = settings.max_file_size_mb * 1024 * 1024
 @router.post("/upload", response_model=TaskResponse)
 async def upload_audio(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     # Validate extension
     ext = os.path.splitext(file.filename)[1].lower()
@@ -43,6 +46,7 @@ async def upload_audio(
     # Create task record
     task = Task(
         id=task_id,
+        user_id=current_user.id,
         original_name=file.filename,
         file_path=file_path,
         output_path=output_path,
@@ -56,4 +60,3 @@ async def upload_audio(
     queue_protect_task(str(task_id), file_path, output_path)
     
     return task
-

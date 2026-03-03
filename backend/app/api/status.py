@@ -4,7 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.celery import celery_app
+from app.core.auth import get_current_user
 from app.models.task import Task
+from app.models.user import User
 from app.schemas.task import TaskResponse, TaskStatus
 from datetime import datetime
 
@@ -13,9 +15,12 @@ router = APIRouter(prefix="/api", tags=["status"])
 @router.get("/status/{task_id}", response_model=TaskStatus)
 async def get_task_status(
     task_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Task).where(Task.id == task_id))
+    result = await db.execute(
+        select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
+    )
     task = result.scalar_one_or_none()
     
     if not task:
@@ -26,13 +31,11 @@ async def get_task_status(
     celery_status = task.status
     
     try:
-        # Look for Celery task result
         async_result = celery_app.AsyncResult(str(task_id))
         if async_result.state == "SUCCESS":
             result_data = async_result.result
             if result_data and result_data.get("status") == "completed":
                 celery_status = "completed"
-                # Update database
                 task.status = "completed"
                 task.processed_at = datetime.utcnow()
                 await db.commit()
@@ -48,7 +51,7 @@ async def get_task_status(
         elif async_result.state == "PENDING":
             celery_status = "queued"
     except Exception:
-        pass  # Use database status if Celery check fails
+        pass
     
     return TaskStatus(
         id=task.id,
@@ -59,13 +62,15 @@ async def get_task_status(
 @router.get("/task/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Task).where(Task.id == task_id))
+    result = await db.execute(
+        select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
+    )
     task = result.scalar_one_or_none()
     
     if not task:
         raise HTTPException(404, "Task not found")
     
     return task
-

@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import upload_router, status_router, download_router
+from app.api import upload_router, status_router, download_router, auth_router
 from app.core.database import engine, Base
-from app.models import Task  # Import to register model
+from app.models import Task, User  # Import to register models
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AudioShield API",
     description="AI Voice Cloning Protection Service",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan
 )
 
@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(status_router)
 app.include_router(download_router)
@@ -35,3 +36,4 @@ app.include_router(download_router)
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "audioshield"}
+
