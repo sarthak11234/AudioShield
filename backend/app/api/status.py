@@ -1,3 +1,6 @@
+from typing import List
+import os
+import shutil
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select
@@ -74,3 +77,41 @@ async def get_task(
         raise HTTPException(404, "Task not found")
     
     return task
+
+@router.get("/tasks", response_model=List[TaskResponse])
+async def get_all_tasks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Task)
+        .where(Task.user_id == current_user.id)
+        .order_by(Task.created_at.desc())
+    )
+    tasks = result.scalars().all()
+    return tasks
+
+@router.delete("/task/{task_id}")
+async def delete_task(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
+    )
+    task = result.scalar_one_or_none()
+    
+    if not task:
+        raise HTTPException(404, "Task not found")
+        
+    from app.core.config import get_settings
+    settings = get_settings()
+    
+    task_dir = os.path.join(settings.upload_dir, str(task.id))
+    if os.path.exists(task_dir):
+        shutil.rmtree(task_dir, ignore_errors=True)
+        
+    await db.delete(task)
+    await db.commit()
+    return {"status": "success", "message": "Task deleted"}

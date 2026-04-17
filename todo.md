@@ -34,7 +34,7 @@
 - [x] Implement file upload endpoint (`.wav`, `.mp3`, max 50MB)
 - [x] Generate unique Task ID on upload
 - [x] Create job queueing system (1 active job per GPU limit)
-- [ ] Implement file storage with automatic cleanup (1 hour TTL)
+- [x] Implement file storage with automatic cleanup (1 hour TTL)
 - [x] Build download endpoint for protected files
 
 ---
@@ -53,8 +53,8 @@
 - [x] Create frosted glass sidebar component
 - [x] Implement navigation menu (Overview, My Vault, Protect New, Settings)
 - [x] Design abstract Shield logo with gradient
-- [ ] Add collapsed/expanded sidebar toggle
-- [ ] Implement mobile-responsive sidebar stacking
+- [x] Add collapsed/expanded sidebar toggle
+- [x] Implement mobile-responsive sidebar stacking
 
 ### 7. Frontend - Dashboard (Command Center)
 - [x] Build "Security Health" hero widget with donut chart
@@ -112,13 +112,13 @@
 - [ ] Implement ZIP download for batch results
 
 ### 14. User Accounts & Authentication
-- [ ] Implement user registration/login (PostgreSQL)
-- [ ] Create protected routes and sessions
-- [ ] Build user dashboard with processing history
-- [ ] Add "My Vault" library (historical archive)
+- [x] Implement user registration/login (PostgreSQL)
+- [x] Create protected routes and sessions
+- [x] Build user dashboard with processing history
+- [x] Add "My Vault" library (historical archive)
 
 ### 15. The Vault (Library Feature)
-- [ ] Design file library grid/list view
+- [x] Design file library grid/list view
 - [ ] Implement search and filter functionality
 - [ ] Add swipe gestures for mobile (Download/Delete)
 - [ ] Create file metadata display

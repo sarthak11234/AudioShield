@@ -3,7 +3,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export interface Task {
     id: string;
     original_name: string;
-    status: 'queued' | 'processing' | 'completed' | 'failed';
+    status: 'queued' | 'processing' | 'completed' | 'failed' | 'expired';
     created_at: string;
     processed_at?: string;
     error_message?: string;
@@ -139,6 +139,22 @@ class ApiClient {
         });
         if (!res.ok) throw new Error('Task not found');
         return res.json();
+    }
+
+    async getTasks(): Promise<Task[]> {
+        const res = await fetch(`${this.baseUrl}/api/tasks`, {
+            headers: this.authHeaders(),
+        });
+        if (!res.ok) throw new Error('Failed to fetch tasks');
+        return res.json();
+    }
+
+    async deleteTask(taskId: string): Promise<void> {
+        const res = await fetch(`${this.baseUrl}/api/task/${taskId}`, {
+            method: 'DELETE',
+            headers: this.authHeaders(),
+        });
+        if (!res.ok) throw new Error('Failed to delete task');
     }
 
     getDownloadUrl(taskId: string): string {

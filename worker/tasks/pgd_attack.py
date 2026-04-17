@@ -101,8 +101,15 @@ def pgd_attack(
         
         grad = grad / 2  # Average
         
+        # Audio Quality Enhancement: Psychoacoustic perceptual weighting proxy
+        # Apply a high-pass difference filter to the gradient. This shapes the noise
+        # to concentrate predominantly in the high-frequency spectrum, preserving
+        # the critical low/mid frequencies where human speech comprehension occurs.
+        grad_shifted = torch.cat([torch.zeros(1, device=device), grad[:-1]])
+        grad_hpf = grad - 0.85 * grad_shifted
+        
         # Update perturbation (maximize loss = add positive gradient)
-        delta = delta + alpha * torch.sign(grad)
+        delta = delta + alpha * torch.sign(grad_hpf)
         delta = torch.clamp(delta, -epsilon, epsilon)
         
         if step % 10 == 0:

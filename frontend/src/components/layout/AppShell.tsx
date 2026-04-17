@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { Sidebar } from './Sidebar';
 
@@ -12,6 +12,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const isPublic = PUBLIC_ROUTES.includes(pathname);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     useEffect(() => {
         if (!isLoading && !user && !isPublic) {
@@ -25,7 +26,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-[#6C5CE7] border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-[var(--violet)] border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
@@ -38,8 +39,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 ml-64 p-8">
+            <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
+            <main className={`flex-1 transition-all duration-300 p-4 md:p-8 ${isCollapsed ? 'ml-20' : 'ml-20 md:ml-64'}`}>
                 {children}
             </main>
         </div>

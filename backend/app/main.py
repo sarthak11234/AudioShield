@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import upload_router, status_router, download_router, auth_router
 from app.core.database import engine, Base
+from app.core.cleanup import cleanup_expired_tasks
 from app.models import Task, User  # Import to register models
 
 @asynccontextmanager
@@ -10,7 +12,18 @@ async def lifespan(app: FastAPI):
     # Create tables on startup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    
+    # Start the cleanup background task
+    cleanup_task = asyncio.create_task(cleanup_expired_tasks())
+    
     yield
+    
+    # Cancel the cleanup task on shutdown
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
 
 app = FastAPI(
     title="AudioShield API",
