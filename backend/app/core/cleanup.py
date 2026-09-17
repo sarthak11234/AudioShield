@@ -1,51 +1,75 @@
 import os
 import shutil
 import asyncio
-from datetime import datetime, timedelta
-from sqlalchemy import select, update
+import logging
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import select
 from app.core.database import async_session
 from app.models.task import Task
 from app.core.config import get_settings
+from app.core.celery import celery_app
 
+logger = logging.getLogger("audioshield.cleanup")
 settings = get_settings()
 
 async def cleanup_expired_tasks():
-    """Background task to delete files older than 1 hour and update DB."""
+    """
+    Background task to delete expired files:
+    1. Completed/failed tasks older than file_ttl_hours (based on processed_at or created_at)
+    2. Stale tasks stuck in queued/processing for > 3 hours (revoking Celery task first)
+    """
     while True:
         try:
             # Run every 15 minutes
             await asyncio.sleep(15 * 60)
-            
+
             async with async_session() as db:
-                # Find tasks older than 1 hour (from created_at or processed_at)
-                one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-                
-                query = select(Task).where(
-                    (Task.status.in_(["completed", "failed", "queued", "processing"])) &
-                    (Task.created_at < one_hour_ago)
+                now = datetime.utcnow()
+                ttl_cutoff = now - timedelta(hours=settings.file_ttl_hours)
+                stale_cutoff = now - timedelta(hours=max(settings.file_ttl_hours * 2, 3))
+
+                # 1. Tasks that finished and exceeded TTL
+                finished_query = select(Task).where(
+                    (Task.status.in_(["completed", "failed"])) &
+                    (Task.created_at < ttl_cutoff)
                 )
-                result = await db.execute(query)
-                expired_tasks = result.scalars().all()
-                
-                for task in expired_tasks:
-                    # Delete folder and contents
+                res_finished = await db.execute(finished_query)
+                expired_finished = res_finished.scalars().all()
+
+                # 2. Abandoned/stuck tasks
+                stuck_query = select(Task).where(
+                    (Task.status.in_(["queued", "processing"])) &
+                    (Task.created_at < stale_cutoff)
+                )
+                res_stuck = await db.execute(stuck_query)
+                stuck_tasks = res_stuck.scalars().all()
+
+                for task in stuck_tasks:
+                    try:
+                        celery_app.control.revoke(str(task.id), terminate=True)
+                    except Exception as e:
+                        logger.warning("Failed to revoke Celery task %s: %s", task.id, e)
+                    task.error_message = "Task abandoned due to processing timeout."
+
+                all_expired = expired_finished + stuck_tasks
+
+                for task in all_expired:
                     task_dir = os.path.join(settings.upload_dir, str(task.id))
                     if os.path.exists(task_dir):
-                        print(f"[Cleanup] Deleting directory {task_dir} for task {task.id}")
+                        logger.info("[Cleanup] Deleting storage directory %s for task %s", task_dir, task.id)
                         shutil.rmtree(task_dir, ignore_errors=True)
-                    
-                    # Update status to expired
+
                     task.status = "expired"
                     task.file_path = ""
                     task.output_path = ""
-                
-                if expired_tasks:
+
+                if all_expired:
                     await db.commit()
-                    print(f"[Cleanup] Cleaned up {len(expired_tasks)} expired tasks.")
-                    
+                    logger.info("[Cleanup] Successfully cleaned up %d tasks.", len(all_expired))
+
         except asyncio.CancelledError:
-            print("[Cleanup] Task cancelled.")
+            logger.info("[Cleanup] Task cancelled.")
             break
         except Exception as e:
-            print(f"[Cleanup] Error in cleanup task: {e}")
-            await asyncio.sleep(60) # Wait a minute before retrying on error
+            logger.error("[Cleanup] Error in cleanup loop: %s", e, exc_info=True)
+            await asyncio.sleep(60)

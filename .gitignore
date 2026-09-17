@@ -24,3 +24,8 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# Evaluation Datasets and Results
+evaluation/datasets/
+evaluation/results/
+evaluation/fixtures/ecapa_model/

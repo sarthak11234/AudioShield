@@ -21,3 +21,4 @@ class TaskStatus(BaseModel):
     id: UUID
     status: str
     progress: Optional[str] = None
+    error_message: Optional[str] = None

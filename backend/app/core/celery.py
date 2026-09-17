@@ -18,8 +18,9 @@ celery_app.conf.update(
 )
 
 def queue_protect_task(task_id: str, input_path: str, output_path: str):
-    """Queue audio protection task to Celery worker."""
-    celery_app.send_task(
+    """Queue audio protection task to Celery worker with canonical task_id."""
+    return celery_app.send_task(
         "protect_audio",
-        args=[task_id, input_path, output_path],
+        args=[str(task_id), input_path, output_path],
+        task_id=str(task_id),
     )

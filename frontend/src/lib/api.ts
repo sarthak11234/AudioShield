@@ -161,6 +161,24 @@ class ApiClient {
         return `${this.baseUrl}/api/download/${taskId}`;
     }
 
+    // Authenticated download (the API requires a Bearer token, which a
+    // plain window.open() navigation cannot send — that yielded HTTP 401).
+    async downloadFile(taskId: string, filename: string): Promise<void> {
+        const res = await fetch(`${this.baseUrl}/api/download/${taskId}`, {
+            headers: this.authHeaders(),
+        });
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
     // ─── Polling ─────────────────────────────────────
 
     async pollTaskStatus(

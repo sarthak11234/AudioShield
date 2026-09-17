@@ -80,9 +80,13 @@ export default function ProtectPage() {
         }
     };
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (task) {
-            window.open(api.getDownloadUrl(task.id), '_blank');
+            try {
+                await api.downloadFile(task.id, task.original_name.replace(/\.\w+$/, '_protected.wav'));
+            } catch {
+                setError('Download failed');
+            }
         }
     };
 

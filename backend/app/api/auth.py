@@ -11,15 +11,23 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/signup", response_model=TokenResponse)
 async def signup(data: UserCreate, db: AsyncSession = Depends(get_db)):
+    email_clean = data.email.strip().lower()
+    username_clean = data.username.strip()
+
+    if len(username_clean) < 2:
+        raise HTTPException(400, "Username must be at least 2 characters")
+    if len(data.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+
     # Check if email already exists
-    result = await db.execute(select(User).where(User.email == data.email))
+    result = await db.execute(select(User).where(User.email == email_clean))
     if result.scalar_one_or_none():
         raise HTTPException(400, "Email already registered")
 
     # Create user
     user = User(
-        email=data.email,
-        username=data.username,
+        email=email_clean,
+        username=username_clean,
         hashed_password=hash_password(data.password),
     )
     db.add(user)
@@ -35,7 +43,8 @@ async def signup(data: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == data.email))
+    email_clean = data.email.strip().lower()
+    result = await db.execute(select(User).where(User.email == email_clean))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(data.password, user.hashed_password):

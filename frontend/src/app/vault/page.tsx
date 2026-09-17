@@ -26,9 +26,12 @@ export default function VaultPage() {
         fetchTasks();
     }, []);
 
-    const handleDownload = (taskId: string) => {
-        const url = api.getDownloadUrl(taskId);
-        window.open(url, '_blank');
+    const handleDownload = async (task: Task) => {
+        try {
+            await api.downloadFile(task.id, task.original_name.replace(/\.\w+$/, '_protected.wav'));
+        } catch (err) {
+            console.error('Download failed', err);
+        }
     };
 
     const handleDelete = async (taskId: string) => {
@@ -141,7 +144,7 @@ export default function VaultPage() {
                                                 <motion.button 
                                                     whileHover={{ scale: 1.05 }}
                                                     whileTap={{ scale: 0.95 }}
-                                                    onClick={() => handleDownload(task.id)} 
+                                                    onClick={() => handleDownload(task)} 
                                                     className="p-2 bg-[rgba(124,58,237,0.08)] hover:bg-[rgba(124,58,237,0.15)] rounded-xl transition-colors text-[var(--violet)]"
                                                 >
                                                     <Download className="w-4 h-4" />
